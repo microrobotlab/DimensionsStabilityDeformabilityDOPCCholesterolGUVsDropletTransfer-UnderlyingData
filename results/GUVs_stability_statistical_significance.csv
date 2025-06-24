@@ -1,0 +1,7 @@
+Sample A,Sample_B,p value (t₀),significance (t₀) - α = 0.005,p value (o.n.),significance (o.n.) - α = 0.005
+100:0,60:40,0.00054,true,9.2e-8,true
+100:0,71:29,3.3e-12,true,4.2e-6,true
+100:0,85:15,0.0,true,0.0019,true
+60:40,71:29,0.0011,true,0.4,false
+60:40,85:15,1.1e-12,true,0.006,false
+71:29,85:15,2.1e-5,true,0.054,false
