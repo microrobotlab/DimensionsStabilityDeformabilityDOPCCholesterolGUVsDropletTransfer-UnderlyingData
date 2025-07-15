@@ -184,26 +184,34 @@ function test_cross_SSD_LN(gdf1,gdf2,XLN)
     end
     # unequal_variances = findall(pvalue.(Ftests).<0.05)
     # sig_mean_diff = findall(pvalue.(ttests).<0.05)
-    return ttessts #sig_mean_diff
+    return ttests #sig_mean_diff
 end;
 # Type-I error rate
 α=0.005;
+# Format p value
+format_p(p) = p < eps(Float64) ? 0.0 : pfs(p; s=2);
 
 # Effects of DOPC:Chol ratio on GUVs stability
 # ---
 # Test the statistical significance of differences between t₀ and o.n. samples
-sig_mean_diff_cross = test_cross_SSD_LN(gdf_t₀,gdf_on,:Diameter_um);
-println("Significantly different samples t₀ vs. o.n.: $(sample_n[sig_mean_diff_cross])")
+ttests_stability = test_cross_SSD_LN(gdf_t₀,gdf_on,:Diameter_um);
+p_stability = pvalue.(ttests_stability);
+df_conc[!,"p value (t₀ vs o.n.)"] = format_p.(p_stability);
+df_conc[!,"significance - α = $α"] = p_stability.<α;
+# println("Significantly different samples t₀ vs. o.n.: $(sample_n[sig_mean_diff_cross])")
 
 # Calculate total surface area of GUVs
 tot_surf_area = combine.([gdf_t₀,gdf_on],:SurfArea_um2 => sum) |> x -> innerjoin(x...,on=:Label,renamecols="_t0"=>"_on");
 # Calculate ratio of surface area between o.n. samples and t₀ samples
 tot_surf_area.ratio_on_t₀ = tot_surf_area.SurfArea_um2_sum_on ./ tot_surf_area.SurfArea_um2_sum_t0;
-# Show surface area ratios
-println("Surface ratio o.n./t₀: ")
-for r in eachrow(tot_surf_area) 
-    println("$(conc_names[r.Label]) => $(r.ratio_on_t₀)")
-end
+# Add surface area ratios to the dataframe
+df_conc[!,"Surface ratio o.n./t₀ (%)"] = round.(Int,100tot_surf_area.ratio_on_t₀);
+# Save the dataframe with p values, statistical significance, and surface area ratios
+CSV.write(joinpath("results","GUVs_stability_T0vsON.csv"),df_conc);   
+# println("Surface ratio o.n./t₀: ")
+# for r in eachrow(tot_surf_area) 
+#     println("$(conc_names[r.Label]) => $(r.ratio_on_t₀)")
+# end
 
 # Effects of DOPC:Chol ratio on GUVs size distributions
 # ---
@@ -217,7 +225,6 @@ df_stat_conc[!,"Sample_B"]=[conc_names[c[2]] for c in combos_sample_n];
 # Test the statistical significance of differences among t₀ samples
 ttests_t₀ = test_SSD_LN(gdf_t₀,:Diameter_um,combos);
 p_t0 = pvalue.(ttests_t₀);
-format_p(p) = p < eps(Float64) ? 0.0 : pfs(p; s=2);
 df_stat_conc[!,"p value (t₀)"] = format_p.(p_t0);
 # sig_mean_diff_t₀ = findall(pvalue.(ttests_t₀).<α);
 # println("Significantly different combinations (α = $α) at t₀: $(combos_sample_n[sig_mean_diff_t₀])")
@@ -229,7 +236,7 @@ df_stat_conc[!,"p value (o.n.)"] = format_p.(p_on);
 # sig_mean_diff_on = findall(pvalue.(ttests_on).<α);
 # println("Significantly different combinations (α = $α)  o.n.: $(combos_sample_n[sig_mean_diff_on])")
 df_stat_conc[!,"significance (o.n.) - α = $α"] = p_on.<α;
-CSV.write(joinpath("results","GUVs_stability_statistical_significance.csv"),df_stat_conc);
+CSV.write(joinpath("results","GUVs_concentration_stability.csv"),df_stat_conc);
 
 # Generation of Figure 2
 # ===
@@ -313,3 +320,4 @@ end
 l = @layout [ [la{0.01w} a]  [lb{0.01w} b{0.3h} ; lc{0.01w} c] ];
 p = plot(labelplot("A"), p1, labelplot("B"), p2, labelplot("C"), p3, layout = l, size=(800,450));
 display(p)
+savefig(p, joinpath("results","Figure2.svg"));
