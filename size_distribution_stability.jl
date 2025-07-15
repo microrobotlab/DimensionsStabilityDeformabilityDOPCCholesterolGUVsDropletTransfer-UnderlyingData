@@ -16,6 +16,19 @@ using StatsPlots
 using Measures
 
 
+# Extended Data folder
+# ---
+ed_folder = "Extended_Data";
+# Create the folder if it does not exist
+if !isdir(ed_folder)
+    mkpath(ed_folder)
+end;
+sd_stab_folder = "size_distribution_T0vsON";
+# Create the folder if it does not exist
+if !isdir(joinpath(ed_folder,sd_stab_folder))
+    mkpath(joinpath(ed_folder,sd_stab_folder))
+end;
+
 # Importing, showing, and fitting size distribution data
 # ===
 
@@ -72,6 +85,11 @@ display(t₀_data)
 println("o.n. data")
 display(on_data)
 
+# Save dataframes to CSV files
+# ---
+CSV.write(joinpath("results",t₀_dataset_name*"_proc.csv"), t₀_data);
+CSV.write(joinpath("results",on_dataset_name*"_proc.csv"), on_data);
+
 
 # Plotting size distributions data
 # ---
@@ -79,7 +97,8 @@ display(on_data)
 hist_lim = max(ceil(maximum(maximum,[t₀_data.Diameter_um...,on_data.Diameter_um...]),sigdigits=2),100) |> Int;
 colors_on = cgrad([palette(:default)[3]/1.5, palette(:default)[1]]/1.5,[0.6,0.71,0.85,1.0],categorical=true)[4:-1:1];
 colors_t₀ = cgrad([palette(:default)[3], palette(:default)[1]],[0.6,0.71,0.85,1.0],categorical=true)[4:-1:1];
-pfs(x; s=1) = round(x,sigdigits=s)
+pfs(x; s=1) = round(x,sigdigits=s);
+pfd(x; d=1) = round(x,digits=d);
 # Function for creating the histogram and fitting LogNormal distribution to each sample's data
 function HistLNDist(diameters;color,fa)
     d_step = 5
@@ -106,15 +125,23 @@ function plotHists(gs)
     cidx = findfirst(sample_n.==gs[1].Label[1])
     t₀, on = plotHist.(gs,[colors_t₀[cidx],colors_on[cidx]],["t₀","o.n."])
     p = plot(t₀[1],on[1],layout=(2,1))
+    savefig(p, joinpath(ed_folder,sd_stab_folder,"sd_size_dist_"*gs[1].Label[1]*".svg"))
     display(p)
     return(t₀[2:3]...,on[2:3]...,gs[1].Label[1])
 end;
 # Plot histogram and fit LogNormal distribution for each sample (Extended Data figures)
-dists_Ns = plotHists.(gdfs)
+dists_Ns = plotHists.(gdfs);
 # Showing medians from fitted LogNormal distributions
+df_conc = DataFrame();
+df_conc[!,"DOPC:Chol"] = [conc_names[d[5]] for d in dists_Ns];
+df_conc[!,"t₀ median (μm)"] = [median(d[1]) |> pfd for d in dists_Ns];
+df_conc[!,"t₀ peak (μm)"] = [mode(d[1]) |> pfd for d in dists_Ns];
+df_conc[!,"t₀ N"] = [d[2] for d in dists_Ns];
+df_conc[!,"o.n. median (μm)"] = [median(d[3]) |> pfd for d in dists_Ns];
+df_conc[!,"o.n. peak (μm)"] = [mode(d[3]) |> pfd for d in dists_Ns];
+df_conc[!,"o.n. N"] = [d[4] for d in dists_Ns];
+# CSV.write(joinpath("results","GUVs_stability_size_distribution.csv"),df_conc);
 # The median of a LogNormal distribution coincides with exp(mean(log(diameters)))
-med_d = ([median(d[1]) for d in dists_Ns], [median(d[3]) for d in dists_Ns]);
-@show med_d;
 
 
 # Statistical analysis
@@ -131,8 +158,7 @@ function StatSigDiffLN(xLN1,xLN2)
     return Ftest, ttest
 end;
 
-
-# Effects of DOPC:Chol ratio on GUVs size distributions
+# Statistical significance of size distribution differences
 # ---
 # Function for testing statistical significance of mean differences between samples (assuming LogNormal distributions) for each combination of samples
 function test_SSD_LN(gdf,XLN,combinations)
@@ -147,8 +173,40 @@ function test_SSD_LN(gdf,XLN,combinations)
     # sig_mean_diff = findall(pvalue.(ttests).<0.05)
     return ttests #sig_mean_diff
 end;
+# Function for testing  the statistical significance of mean differences between pristine and overnight samples (assuming LogNormal distributions)
+function test_cross_SSD_LN(gdf1,gdf2,XLN)
+    Ftests = []
+    ttests = []
+    for (g1,g2) in zip(gdf1, gdf2)
+        Ftest, ttest = StatSigDiffLN(g1[!,Symbol(XLN)],g2[!,Symbol(XLN)])
+        push!(Ftests,Ftest)
+        push!(ttests,ttest)
+    end
+    # unequal_variances = findall(pvalue.(Ftests).<0.05)
+    # sig_mean_diff = findall(pvalue.(ttests).<0.05)
+    return ttessts #sig_mean_diff
+end;
 # Type-I error rate
 α=0.005;
+
+# Effects of DOPC:Chol ratio on GUVs stability
+# ---
+# Test the statistical significance of differences between t₀ and o.n. samples
+sig_mean_diff_cross = test_cross_SSD_LN(gdf_t₀,gdf_on,:Diameter_um);
+println("Significantly different samples t₀ vs. o.n.: $(sample_n[sig_mean_diff_cross])")
+
+# Calculate total surface area of GUVs
+tot_surf_area = combine.([gdf_t₀,gdf_on],:SurfArea_um2 => sum) |> x -> innerjoin(x...,on=:Label,renamecols="_t0"=>"_on");
+# Calculate ratio of surface area between o.n. samples and t₀ samples
+tot_surf_area.ratio_on_t₀ = tot_surf_area.SurfArea_um2_sum_on ./ tot_surf_area.SurfArea_um2_sum_t0;
+# Show surface area ratios
+println("Surface ratio o.n./t₀: ")
+for r in eachrow(tot_surf_area) 
+    println("$(conc_names[r.Label]) => $(r.ratio_on_t₀)")
+end
+
+# Effects of DOPC:Chol ratio on GUVs size distributions
+# ---
 # Get all combinations of samples (combinations are the same for t₀ and on)
 combos = collect(combinations(eachindex(sample_n),2));
 combos_sample_n = [sample_n[c[:]] for c in combos];
@@ -172,37 +230,6 @@ df_stat_conc[!,"p value (o.n.)"] = format_p.(p_on);
 # println("Significantly different combinations (α = $α)  o.n.: $(combos_sample_n[sig_mean_diff_on])")
 df_stat_conc[!,"significance (o.n.) - α = $α"] = p_on.<α;
 CSV.write(joinpath("results","GUVs_stability_statistical_significance.csv"),df_stat_conc);
-
-
-# Effects of DOPC:Chol ratio on GUVs stability
-# ---
-# Function for testing  the statistical significance of mean differences between pristine and overnight samples (assuming LogNormal distributions)
-function test_cross_SSD_LN(gdf1,gdf2,XLN)
-    Ftests = []
-    ttests = []
-    for (g1,g2) in zip(gdf1, gdf2)
-        Ftest, ttest = StatSigDiffLN(g1[!,Symbol(XLN)],g2[!,Symbol(XLN)])
-        push!(Ftests,Ftest)
-        push!(ttests,ttest)
-    end
-    unequal_variances = findall(pvalue.(Ftests).<0.05)
-    sig_mean_diff = findall(pvalue.(ttests).<0.05)
-    return sig_mean_diff
-end;
-# Test the statistical significance of differences between t₀ and o.n. samples
-sig_mean_diff_cross = test_cross_SSD_LN(gdf_t₀,gdf_on,:Diameter_um);
-println("Significantly different samples t₀ vs. o.n.: $(sample_n[sig_mean_diff_cross])")
-
-# Calculate total surface area of GUVs
-tot_surf_area = combine.([gdf_t₀,gdf_on],:SurfArea_um2 => sum) |> x -> innerjoin(x...,on=:Label,renamecols="_t0"=>"_on");
-# Calculate ratio of surface area between o.n. samples and t₀ samples
-tot_surf_area.ratio_on_t₀ = tot_surf_area.SurfArea_um2_sum_on ./ tot_surf_area.SurfArea_um2_sum_t0;
-# Show surface area ratios
-println("Surface ratio o.n./t₀: ")
-for r in eachrow(tot_surf_area) 
-    println("$(conc_names[r.Label]) => $(r.ratio_on_t₀)")
-end
-
 
 # Generation of Figure 2
 # ===
