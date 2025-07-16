@@ -2,7 +2,7 @@
 
 julia_version = "1.10.2"
 manifest_format = "2.0"
-project_hash = "7eaf36c18a2267b93d157dc8133b7636bc9a9414"
+project_hash = "11c0b2fda38411d96c35b69ba0d948c8962a4a8b"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -1214,6 +1214,12 @@ deps = ["DataAPI", "Future"]
 git-tree-sha1 = "36d8b4b899628fb92c2749eb488d884a926614d3"
 uuid = "2dfb63ee-cc39-5dd5-95bd-886bf059d720"
 version = "1.4.3"
+
+[[deps.PowerAnalyses]]
+deps = ["Distributions", "Roots"]
+git-tree-sha1 = "c11399827fdd447531d2cf1495d653d1760f4466"
+uuid = "fee4b835-1841-44f8-82ea-42813857171a"
+version = "0.2.7"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]

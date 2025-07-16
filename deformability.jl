@@ -11,6 +11,7 @@ using Plots
 using Distributions
 using HypothesisTests
 using StatsPlots
+import PowerAnalyses as PA
 
 # Utilities
 pfs(x; s=1) = round(x,sigdigits=s);
@@ -192,6 +193,23 @@ for i in 1:3
     println("Statistically significant difference in surface area deformation σ, H$i (α = $α): $(pvalue(sigdiff_S_ttests[i])<α)")
 end
 df_stat[!, "p value, σ (t test, LN)"] = @. format_p(pvalue(sigdiff_S_ttests))
+function effect_size_LN(xLN1,xLN2)
+    x1, x2 = log.(xLN1), log.(xLN2)
+    return (mean(x1) - mean(x2)) / sqrt((var(x1) + var(x2)) / 2)
+end
+sigma_factor(es,xLN1,xLN2) = exp(es*sqrt((var(log.(xLN1)) + var(log.(xLN2))) / 2))
+# Calculate the minimum effect size detectable with given power for all fields
+power = 0.8
+es_all = PA.get_es(PA.IndependentSamplesTTest(PA.Tail(1)), power=power, alpha=α, n=min(length(df_1000.sigma_), length(df_6040.sigma_)))
+sigma_factor_es_all = sigma_factor(es_all,df_1000.sigma_,df_6040.sigma_)
+# Calculate the minimum effect size detectable with given power for each field
+es_fields = [PA.get_es(PA.IndependentSamplesTTest(PA.Tail(1)), power=power, alpha=α, n=min(length(d1.sigma_), length(d2.sigma_))) for (d1,d2) in zip(gdf_1000,gdf_6040)]
+sigma_factor_es_fields = [sigma_factor(es, d1.sigma_, d2.sigma_) for (d1,d2,es) in zip(gdf_1000,gdf_6040,es_fields)]
+# Add minimum detectable effect size to the dataframe
+df_stat[!, "min detectable σ1/σ2 (t test, LN, power=$power)"] = pfs.(sigma_factor_es_fields,s=3)
+# Save statistical significance results
+CSV.write(joinpath("results","GUVs_deformability_stat.csv"),df_stat);
+
 # Test the statistical significance of differences between fields
 combos = ((1,2),(1,3),(2,3));
 println("Statistically significant difference in surface area deformation σ (α = $α):")
@@ -200,7 +218,6 @@ for c in combos
     ttest_6040 = StatSigDiffLN(gdf_6040[c[1]].sigma_,gdf_6040[c[2]].sigma_)
     println("H$c: 100:0 → $(pvalue(ttest_1000)<α), 60:40 → $(pvalue(ttest_6040)<α)")
 end
-CSV.write(joinpath("results","GUVs_deformability_stat.csv"),df_stat);
 
 # Generating Figure 5
 # ---
