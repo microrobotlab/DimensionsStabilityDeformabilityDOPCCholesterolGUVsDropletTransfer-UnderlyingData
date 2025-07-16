@@ -12,6 +12,27 @@ using Distributions
 using HypothesisTests
 using StatsPlots
 
+# Utilities
+pfs(x; s=1) = round(x,sigdigits=s);
+pfd(x; d=1) = round(x,digits=d);
+
+# Extended Data folder
+# ---
+ed_folder = "Extended_Data";
+# Create the folder if it does not exist
+if !isdir(ed_folder)
+    mkpath(ed_folder)
+end;
+def_size_folder = "deformation_size";
+# Create the folder if it does not exist
+if !isdir(joinpath(ed_folder,def_size_folder))
+    mkpath(joinpath(ed_folder,def_size_folder))
+end;
+sd_mag_folder = "size_distribution_magnetic";
+# Create the folder if it does not exist
+if !isdir(joinpath(ed_folder,sd_mag_folder))
+    mkpath(joinpath(ed_folder,sd_mag_folder))
+end;
 
 # Importing data and calculating deformations
 # ===
@@ -54,12 +75,15 @@ add_fields_geom!.(data, repeat(1:3,2));
 df_1000 = vcat(data[1:3]...,cols=:union);
 df_6040 = vcat(data[4:6]...,cols=:union);
 
-# Show dataframes
+# Show and save dataframes
 # ---
 println("GUVs without cholesterol")
 display(df_1000)
 println("GUVs with cholesterol (DOPC:Chol 60:40)")
 display(df_6040)
+# Save dataframes
+CSV.write(joinpath("results","GUVs_deformability_100_0.csv"),df_1000);
+CSV.write(joinpath("results","GUVs_deformability_60_40.csv"),df_6040);
 
 # Create grouped dataframes by magnetic field
 # ---
@@ -98,13 +122,19 @@ function plotHists(diameters_1,diameters_2,sample_n)
     dists_2, h_2, N_2 = HistLNDist(diameters_2,sample_n[2],color=colors[2],fa=0.5)
     p = plot(h_1,h_2,layout=(2,1))
     display(p)
-    return(dists_1,dists_2,N_1,N_2)
+    return (dists_1,dists_2,N_1,N_2)
 end;
 # Plot histogram and fitting LogNormal distribution for each sample (at all fields)
 dists_Ns = plotHists(df_1000.D_um,df_6040.D_um,sample_n)
+# Save histograms
+savefig(joinpath(ed_folder,sd_mag_folder,"sd_mag_all.svg"));
 
 # Statistical significance of difference in size distribution (rest diameters)
 # ---
+# Type-I error rate
+α=0.005;
+# Format p value
+format_p(p) = p < eps(Float64) ? 0.0 : pfs(p; s=2);
 # Function for testing the statistical significance of mean differences between samples (assuming LogNormal distribution)
 function StatSigDiffLN(xLN1,xLN2)
     xN1, xN2 = log.(xLN1), log.(xLN2)
@@ -119,14 +149,19 @@ end;
 # Test the statistical significance of size distribution differences between samples (assuming LogNormal distribution)
 # All field values
 sigdiff_tot_ttest = StatSigDiffLN(df_1000.D_um,df_6040.D_um);
-println("Statistically significant difference in size distribution (all fields): $(pvalue(sigdiff_tot_ttest)<0.05)")
+println("Statistically significant difference in size distribution, all fields (α = $α): $(pvalue(sigdiff_tot_ttest)<α)")
+println("p-value: $(format_p(pvalue(sigdiff_tot_ttest)))")
 # Individual field values
 sigdiff_h_ttests = Vector{Any}(undef,3);
 for i in 1:3
     plotHists(gdf_1000[i].D_um,gdf_6040[i].D_um,sample_n.*", H$i")
+    savefig(joinpath(ed_folder,sd_mag_folder,"sd_mag_H$i.svg"))
     sigdiff_h_ttests[i] = StatSigDiffLN(gdf_1000[i].D_um,gdf_6040[i].D_um)
-    println("Statistically significant difference in size distribution (H$i): $(pvalue(sigdiff_h_ttests[i])<0.05)")
+    println("Statistically significant difference in size distribution, H$i (α = $α): $(pvalue(sigdiff_h_ttests[i])<α)")
+    println("p-value: $(format_p(pvalue(sigdiff_h_ttests[i])))")
 end;
+df_stat = DataFrame(field = ["H1","H2","H3"])
+df_stat[!, "p value, size"] = [format_p(pvalue(sigdiff_h_ttests[i])) for i in 1:3];
 
 
 # Deformation of magnetic GUVs with and without cholesterol
@@ -135,12 +170,17 @@ end;
 # σ vs. equivalent radius
 for i in 1:3
     p = @df gdf_1000[i] scatter(:R_um,:sigma_,markercolor=colors[1], markerstrokewidth=0, label="100:0, H$i")
+    
     @df gdf_6040[i] scatter!(:R_um,:sigma_,markercolor=colors[2], markerstrokewidth=0, label="60:40, H$i")
+
     xlabel!("R (μm)")
     ylabel!("σ = Sₚₛ/Sₛ − 1")
+    # ylabel!("σ⋅R = (Sₚₛ/Sₛ − 1)⋅R")
     xlims!(0,35)
     ylims!(-0.01,0.45)
+    # ylims!(-Inf,3)
     display(p)
+    savefig(joinpath(ed_folder,def_size_folder,"sd_deform_scatter_H$i.svg"))
 end
 
 # Testing statistical significance
@@ -149,16 +189,18 @@ end
 sigdiff_S_ttests = Vector{Any}(undef,3);
 for i in 1:3
     sigdiff_S_ttests[i] = StatSigDiffLN(gdf_1000[i].sigma_,gdf_6040[i].sigma_)
-    println("Statistically significant difference in surface area deformation σ (H$i): $(pvalue(sigdiff_S_ttests[i])<0.05)")
+    println("Statistically significant difference in surface area deformation σ, H$i (α = $α): $(pvalue(sigdiff_S_ttests[i])<α)")
 end
+df_stat[!, "p value, σ (t test, LN)"] = @. format_p(pvalue(sigdiff_S_ttests))
 # Test the statistical significance of differences between fields
 combos = ((1,2),(1,3),(2,3));
-println("Statistically significant difference in surface area deformation σ:")
+println("Statistically significant difference in surface area deformation σ (α = $α):")
 for c in combos
     ttest_1000 = StatSigDiffLN(gdf_1000[c[1]].sigma_,gdf_1000[c[2]].sigma_)
     ttest_6040 = StatSigDiffLN(gdf_6040[c[1]].sigma_,gdf_6040[c[2]].sigma_)
-    println("H$c: 100:0 → $(pvalue(ttest_1000)<0.05), 60:40 → $(pvalue(ttest_6040)<0.05)")
+    println("H$c: 100:0 → $(pvalue(ttest_1000)<α), 60:40 → $(pvalue(ttest_6040)<α)")
 end
+CSV.write(joinpath("results","GUVs_deformability_stat.csv"),df_stat);
 
 # Generating Figure 5
 # ---
@@ -171,4 +213,3 @@ begin
     ylabel!("σ = Sₚₛ/Sₛ − 1")
     display(def)
 end
-
