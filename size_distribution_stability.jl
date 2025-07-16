@@ -197,7 +197,7 @@ format_p(p) = p < eps(Float64) ? 0.0 : pfs(p; s=2);
 ttests_stability = test_cross_SSD_LN(gdf_t₀,gdf_on,:Diameter_um);
 p_stability = pvalue.(ttests_stability);
 df_conc[!,"p value (t₀ vs o.n.)"] = format_p.(p_stability);
-df_conc[!,"significance - α = $α"] = p_stability.<α;
+# df_conc[!,"significance - α = $α"] = p_stability.<α;
 # println("Significantly different samples t₀ vs. o.n.: $(sample_n[sig_mean_diff_cross])")
 
 # Calculate total surface area of GUVs
@@ -228,14 +228,14 @@ p_t0 = pvalue.(ttests_t₀);
 df_stat_conc[!,"p value (t₀)"] = format_p.(p_t0);
 # sig_mean_diff_t₀ = findall(pvalue.(ttests_t₀).<α);
 # println("Significantly different combinations (α = $α) at t₀: $(combos_sample_n[sig_mean_diff_t₀])")
-df_stat_conc[!,"significance (t₀) - α = $α"] = p_t0.<α;
+# df_stat_conc[!,"significance (t₀) - α = $α"] = p_t0.<α;
 # Test the statistical significance of differences among o.n. samples
 ttests_on = test_SSD_LN(gdf_on,:Diameter_um,combos);
 p_on = pvalue.(ttests_on);
 df_stat_conc[!,"p value (o.n.)"] = format_p.(p_on);
 # sig_mean_diff_on = findall(pvalue.(ttests_on).<α);
 # println("Significantly different combinations (α = $α)  o.n.: $(combos_sample_n[sig_mean_diff_on])")
-df_stat_conc[!,"significance (o.n.) - α = $α"] = p_on.<α;
+# df_stat_conc[!,"significance (o.n.) - α = $α"] = p_on.<α;
 CSV.write(joinpath("results","GUVs_concentration_stability.csv"),df_stat_conc);
 
 # Generation of Figure 2
