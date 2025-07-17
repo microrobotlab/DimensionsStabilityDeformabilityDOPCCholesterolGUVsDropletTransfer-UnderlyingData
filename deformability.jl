@@ -162,7 +162,7 @@ for i in 1:3
     println("p-value: $(format_p(pvalue(sigdiff_h_ttests[i])))")
 end;
 df_stat = DataFrame(field = ["H1","H2","H3"])
-df_stat[!, "p value, size"] = [format_p(pvalue(sigdiff_h_ttests[i])) for i in 1:3];
+df_stat[!, "p value size"] = [format_p(pvalue(sigdiff_h_ttests[i])) for i in 1:3];
 
 
 # Deformation of magnetic GUVs with and without cholesterol
@@ -192,7 +192,7 @@ for i in 1:3
     sigdiff_S_ttests[i] = StatSigDiffLN(gdf_1000[i].sigma_,gdf_6040[i].sigma_)
     println("Statistically significant difference in surface area deformation σ, H$i (α = $α): $(pvalue(sigdiff_S_ttests[i])<α)")
 end
-df_stat[!, "p value, σ (t test, LN)"] = @. format_p(pvalue(sigdiff_S_ttests))
+df_stat[!, "p value σ (t test - LN)"] = @. format_p(pvalue(sigdiff_S_ttests))
 function effect_size_LN(xLN1,xLN2)
     x1, x2 = log.(xLN1), log.(xLN2)
     return (mean(x1) - mean(x2)) / sqrt((var(x1) + var(x2)) / 2)
@@ -206,7 +206,7 @@ sigma_factor_es_all = sigma_factor(es_all,df_1000.sigma_,df_6040.sigma_)
 es_fields = [PA.get_es(PA.IndependentSamplesTTest(PA.Tail(1)), power=power, alpha=α, n=min(length(d1.sigma_), length(d2.sigma_))) for (d1,d2) in zip(gdf_1000,gdf_6040)]
 sigma_factor_es_fields = [sigma_factor(es, d1.sigma_, d2.sigma_) for (d1,d2,es) in zip(gdf_1000,gdf_6040,es_fields)]
 # Add minimum detectable effect size to the dataframe
-df_stat[!, "min detectable σ1/σ2 (t test, LN, power=$power)"] = pfs.(sigma_factor_es_fields,s=3)
+df_stat[!, "min detectable σ1/σ2 (t test - LN - power=$power)"] = pfs.(sigma_factor_es_fields,s=3)
 # Save statistical significance results
 CSV.write(joinpath("results","GUVs_deformability_stat.csv"),df_stat);
 
@@ -230,3 +230,4 @@ begin
     ylabel!("σ = Sₚₛ/Sₛ − 1")
     display(def)
 end
+savefig(joinpath("results","Figure5.svg"))

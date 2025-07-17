@@ -238,7 +238,7 @@ df_stat_conc[!,"p value (o.n.)"] = format_p.(p_on);
 # df_stat_conc[!,"significance (o.n.) - α = $α"] = p_on.<α;
 CSV.write(joinpath("results","GUVs_concentration_stability.csv"),df_stat_conc);
 
-# Generation of Figure 2
+# Generation of Figure 3
 # ===
 
 # Panel A
@@ -320,4 +320,4 @@ end
 l = @layout [ [la{0.01w} a]  [lb{0.01w} b{0.3h} ; lc{0.01w} c] ];
 p = plot(labelplot("A"), p1, labelplot("B"), p2, labelplot("C"), p3, layout = l, size=(800,450));
 display(p)
-savefig(p, joinpath("results","Figure2.svg"));
+savefig(p, joinpath("results","Figure3.svg"));
